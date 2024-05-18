@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox
-from cryptography.fernet import Fernet
 import os
 
 KEY_DIR = os.path.join(os.path.expanduser("~"), ".notepad_app")
@@ -19,9 +18,6 @@ class Notepad:
         # If there is no password file or it's corrupted, prompt the user to create a password
         if not self.password:
             self.password = self.save_password()
-
-        # Load the key file
-        self.cipher_suite = self.load_key()
 
         self.text_area = tk.Text(self.root, wrap='word')
         self.text_area.pack(expand=1, fill='both')
@@ -46,16 +42,10 @@ class Notepad:
         try:
             password = simpledialog.askstring("Create Password", "Create a password for the application:", show='*')
             if password:
-                password = password.encode()
-                cipher_suite = Fernet.generate_key()
-                with open(KEY_FILE, 'wb') as key_file:
-                    key_file.write(cipher_suite)
-                cipher_suite = Fernet(cipher_suite)
-                encrypted_password = cipher_suite.encrypt(password)
-                with open(PASSWORD_FILE, "wb") as file:
-                    file.write(encrypted_password)
-                messagebox.showinfo("Success", "Password encrypted and saved successfully.")
-                return password.decode()  # Return the encrypted password
+                with open(PASSWORD_FILE, "w") as file:
+                    file.write(password)
+                messagebox.showinfo("Success", "Password saved successfully.")
+                return password
             else:
                 messagebox.showerror("Error", "Invalid password!")
                 return None
@@ -63,47 +53,36 @@ class Notepad:
             messagebox.showerror("Error", f"An error occurred while saving the password: {e}")
             return None
 
-    def load_key(self):
-        if not os.path.exists(KEY_DIR):
-            os.makedirs(KEY_DIR)
-        
-        if os.path.exists(KEY_FILE):
-            with open(KEY_FILE, 'rb') as key_file:
-                key = key_file.read()
-        else:
-            key = Fernet.generate_key()
-            with open(KEY_FILE, 'wb') as key_file:
-                key_file.write(key)
-        return Fernet(key)
-
     def save_file(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
         if file_path:
             try:
                 text_content = self.text_area.get(1.0, tk.END)
-                encrypted_text = self.cipher_suite.encrypt(text_content.encode())
-                with open(file_path, "wb") as file:
-                    file.write(encrypted_text)
-                messagebox.showinfo("Success", "File saved and encrypted successfully.")
+                with open(file_path, "w") as file:
+                    file.write(text_content)
+                messagebox.showinfo("Success", "File saved successfully.")
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred while saving the file: {e}")
 
     def open_file(self):
-        password = simpledialog.askstring("Password Entry", "Enter the password to open the file:", show='*')
-        if password == self.password:
-            file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
-            if file_path:
-                try:
-                    with open(file_path, "rb") as file:
-                        encrypted_text = file.read()
-                    decrypted_text = self.cipher_suite.decrypt(encrypted_text).decode()
-                    self.text_area.delete(1.0, tk.END)
-                    self.text_area.insert(tk.END, decrypted_text)
-                    messagebox.showinfo("Success", "File opened and decrypted successfully.")
-                except Exception as e:
-                    messagebox.showerror("Error", f"An error occurred while opening the file: {e}")
-        else:
-            messagebox.showerror("Incorrect Password", "Incorrect password!")
+        while True:
+            password = simpledialog.askstring("Password Entry", "Enter the password to open the file:", show='*')
+            if password == self.password:
+                file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+                if file_path:
+                    try:
+                        with open(file_path, "r") as file:
+                            text_content = file.read()
+                        self.text_area.delete(1.0, tk.END)
+                        self.text_area.insert(tk.END, text_content)
+                        messagebox.showinfo("Success", "File opened successfully.")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"An error occurred while opening the file: {e}")
+                break  # Parola doğruysa döngüden çık
+            elif password is None:  # Kullanıcı iptal ederse
+                break  # Döngüden çık
+            else:
+                messagebox.showerror("Incorrect Password", "Incorrect password!")
 
     def show_key_location(self):
         password = simpledialog.askstring("Password Entry", "Enter the password to view the key file location:", show='*')
@@ -111,8 +90,6 @@ class Notepad:
             messagebox.showinfo("Key File Location", f"The key file is stored here:\n{KEY_FILE}")
         else:
             messagebox.showerror("Incorrect Password", "Incorrect password!")
-
-
 
 if __name__ == "__main__":
     root = tk.Tk()
